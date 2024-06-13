@@ -30,6 +30,7 @@ app.get('/status/:name', (req, res) => {
 });
 
 app.get('/start/:name', (req, res) => {
+    monitor.syncProfileFiles(req.params.name);
     let success = docker.StartProfile(req.params.name);
     res.status(success ? 200 : 500).json({isStarting: success});
 });

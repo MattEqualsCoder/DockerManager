@@ -70,6 +70,7 @@ export class Monitor {
         axios.get(repoUrl).then(response => {
             if (this.cache.get(monitor.Profile) == response.data.sha) {
                 Logger.info(`${monitor.Profile} has up-to-date version of ${response.data.sha}`);
+                this.syncMonitorFiles(monitor);
                 return;
             }
 
@@ -116,6 +117,7 @@ export class Monitor {
 
             if (this.cache.get(monitor.Profile) == name) {
                 Logger.info(`${monitor.Profile} has up-to-date version of ${name}`);
+                this.syncMonitorFiles(monitor);
                 return;
             }
 
@@ -222,10 +224,37 @@ export class Monitor {
 
         this.docker.WaitForStatus(monitor.Profile, false, 12, (success) => {
             if (success) {
+                this.syncMonitorFiles(monitor);
                 this.docker.StartProfile(monitor.Profile);
             } else {
                 Logger.error(`Unable to start docker profile ${monitor.Profile}`);
             }
+        });
+    }
+
+    syncProfileFiles(profile: string) {
+        let monitor = this.monitors.find(x => x.Profile == profile);
+        if (!monitor) {
+            return;
+        }
+        this.syncMonitorFiles(monitor);
+    }
+
+    syncMonitorFiles(monitor: MonitorDetails) {
+        monitor.CopyFiles.forEach((file) => {
+            let source = `${monitor.DestinationDirectory}/${file}`;
+            let destination = `${monitor.DestinationDirectory}/current/${file}`;
+
+            let sourceDate : Date = new Date();
+            let destinationDate : Date = new Date();
+            fs.utimesSync(source, new Date(), sourceDate);
+            fs.utimesSync(destination, new Date(), destinationDate);
+
+            if (sourceDate != destinationDate) {
+                Logger.info(`Copying ${source} to ${destination}`);
+                fs.cpSync(source, destination, { recursive: true, force: true})
+            }
+            
         });
     }
 }
