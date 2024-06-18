@@ -57,7 +57,7 @@ export class Docker {
             format: LogFormat,
             transports: [
                 new DailyRotateFile({ 
-                    filename: `logs/docker/docker_%DATE%.log`,
+                    filename: `../logs/docker/docker_%DATE%.log`,
                     datePattern: 'yyyy-MM-DD'
                 }),
             ],
@@ -103,7 +103,7 @@ export class Docker {
             format: LogFormat,
             transports: [
                 new DailyRotateFile({ 
-                    filename: `logs/docker/${profileName}_%DATE%.log`,
+                    filename: `../logs/docker/${profileName}_%DATE%.log`,
                     datePattern: 'yyyy-MM-DD'
                 }),
             ],
@@ -150,7 +150,7 @@ export class Docker {
             format: LogFormat,
             transports: [
                 new DailyRotateFile({ 
-                    filename: `logs/docker/${profileName}_%DATE%.log`,
+                    filename: `../logs/docker/${profileName}_%DATE%.log`,
                     datePattern: 'yyyy-MM-DD'
                 }),
             ],
