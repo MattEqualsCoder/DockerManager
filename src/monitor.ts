@@ -183,6 +183,7 @@ export class Monitor {
                         if (monitor.RemoveParentFolder) {
                             copyPath = `${tempDirectory}/${fs.readdirSync(tempDirectory)[0]}`;
                         }
+                        Logger.info(`Renaming ${copyPath} to ${buildDirectory}`);
                         fs.renameSync(copyPath, buildDirectory);
                     
                         if (fs.existsSync(`${monitor.DestinationDirectory}/current`)) {
