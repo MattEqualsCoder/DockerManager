@@ -21,7 +21,7 @@ const Logger = winston.createLogger({
     format: LogFormat,
     transports: [
         new DailyRotateFile({ 
-            filename: `logs/log_%DATE%.log`,
+            filename: `../logs/log_%DATE%.log`,
             datePattern: 'yyyy-MM-DD'
         }),
     ],
