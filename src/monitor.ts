@@ -181,7 +181,8 @@ export class Monitor {
     
                         let copyPath = tempDirectory;
                         if (monitor.RemoveParentFolder) {
-                            copyPath = `${tempDirectory}/${fs.readdirSync(tempDirectory)[0]}`;
+                            let subFolder = fs.readdirSync(tempDirectory, { withFileTypes: true }).filter(x => x.isDirectory()).map(x => x.name)[0];
+                            copyPath = `${tempDirectory}/${subFolder}`;
                         }
                         Logger.info(`Renaming ${copyPath} to ${buildDirectory}`);
                         fs.renameSync(copyPath, buildDirectory);
