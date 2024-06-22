@@ -54,10 +54,16 @@ export class Monitor {
 
     runMonitor(isInit: boolean) {
         this.monitors.forEach(monitor => {
-            if (monitor.Type == 'repo') {
-                this.runRepoMonitor(monitor, isInit);
-            } else if (monitor.Type == 'release') {
-                this.runReleaseMonitor(monitor, isInit);
+            try {
+                if (monitor.Type == 'repo') {
+                    this.runRepoMonitor(monitor, isInit);
+                } else if (monitor.Type == 'release') {
+                    this.runReleaseMonitor(monitor, isInit);
+                }
+            }
+            catch (e) {
+                Logger.error(`Error running ${monitor.Profile} monitor`);
+                Logger.error(e);
             }
         });
     }
