@@ -90,6 +90,8 @@ export class Monitor {
             } else {
                 Logger.info(`Do nothing for ${monitor.Profile}`);
             }
+        }).catch((e) => {
+            Logger.error(e);
         });
 
     }
@@ -134,6 +136,8 @@ export class Monitor {
             } else {
                 Logger.info(`Do nothing for ${monitor.Profile}`);
             }
+        }).catch((e) => {
+            Logger.error(e);
         });
 
     }
@@ -222,6 +226,8 @@ export class Monitor {
                 }
             }
             
+        }).catch((e) => {
+            Logger.error(e);
         });
     }
     
