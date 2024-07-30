@@ -200,17 +200,16 @@ export class Docker {
     }
 
     GetContainerStatus(containerName: string, callback: ((success: boolean, isUp: boolean) => void)) {
-        if (!this.services.includes(containerName))
-        {
-            Logger.error(`Container: ${containerName} is invalid`);
-            callback(false, false);
-            return;
-        }
-
         this.GetStatuses((success, statuses) => {
             if (!success) {
                 callback(false, false);
                 return
+            }
+
+            if (!statuses.has(containerName)) {
+                Logger.error(`Container: ${containerName} is invalid`);
+                callback(false, false);
+                return;
             }
 
             callback(success, statuses.get(containerName) ?? false);
@@ -262,18 +261,22 @@ export class Docker {
 
             let results = new Map<string, boolean>();
             let lines = stdout.split("\n");
+            let nameEnd = lines[0].indexOf("IMAGE");
             let serviceStart = lines[0].indexOf("SERVICE");
             let serviceEnd = lines[0].indexOf("CREATED");
             let statusStart = lines[0].indexOf("STATUS");
             let statusEnd = lines[0].indexOf("PORTS");
             for (let i = 1; i < lines.length; i++) {
                 let line = lines[i];
+                let name = line.substring(0, nameEnd).trim();
                 let service = line.substring(serviceStart, serviceEnd).trim();
                 if (!service) {
                     continue;
                 }
                 let status = line.substring(statusStart, statusEnd);
-                results.set(service, status.startsWith("Up"));
+                let isUp = status.startsWith("Up");
+                results.set(service, isUp);
+                results.set(name, isUp);
             }
 
             this.services.forEach(serviceKey => {
