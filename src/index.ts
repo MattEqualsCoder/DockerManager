@@ -40,6 +40,12 @@ app.get('/stop/:name', (req, res) => {
     res.status(success ? 200 : 500).json({isShuttingDown: success});
 });
 
+app.get('/command/:name/:command', (req, res) => {
+    docker.ExecuteCommand(req.params.name, req.params.command, (success, response) => {
+        res.status(success ? 200 : 500).json({success: success, response: response});
+    });
+});
+
 app.listen(ApiPort, () => {
     Logger.info(`Server is running on http://localhost:${ApiPort}`);
 });

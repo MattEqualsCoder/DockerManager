@@ -217,6 +217,34 @@ export class Docker {
         });
     }
 
+    ExecuteCommand(containerName: string, command: string, callback: ((success: boolean, response: string) => void)) {
+
+        this.GetContainerStatus(containerName, (success, isUp) => {
+            if (!success || !isUp) {
+                callback(false, "Container is not currently running");
+                return;
+            }
+
+            exec(`docker exec ${containerName} ${command}`, {cwd: this.folder}, (error, stdout, stderr) => {
+
+                if (error) {
+                    Logger.error(error.message);
+                    callback(false, `Error: ${error.message}`);
+                    return;
+                }
+    
+                if (stderr) {
+                    Logger.error(stderr);
+                    callback(false, `Error: ${stderr}`);
+                    return;
+                }
+
+                callback(true, stdout);
+
+            });
+        });
+    }
+
     GetStatuses(callback: ((success: boolean, upStatuses: Map<string, boolean>) => void)) {
         exec('docker compose ps -a', {cwd: this.folder}, (error, stdout, stderr) => {
 

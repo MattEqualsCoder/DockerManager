@@ -32,6 +32,9 @@ export class Monitor {
         }
         let yamlText = fs.readFileSync(path, 'utf8');
         const yamlValue = parse(yamlText);
+
+        if (!yamlValue) return;
+        
         Object.keys(yamlValue).forEach(profile => {
             let profileDetails = yamlValue[profile];
 
