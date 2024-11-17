@@ -224,6 +224,8 @@ export class Docker {
                 return;
             }
 
+            Logger.info(`docker exec ${containerName} ${command}`);
+
             exec(`docker exec ${containerName} ${command}`, {cwd: this.folder}, (error, stdout, stderr) => {
 
                 if (error) {

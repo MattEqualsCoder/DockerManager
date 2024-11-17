@@ -10,6 +10,10 @@ var cron = require('node-cron');
 
 const app = express();
 
+var bodyParser = require('body-parser');
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json())
+
 var docker = new Docker();
 var monitor = new Monitor(docker);
 
@@ -40,8 +44,9 @@ app.get('/stop/:name', (req, res) => {
     res.status(success ? 200 : 500).json({isShuttingDown: success});
 });
 
-app.get('/command/:name/:command', (req, res) => {
-    docker.ExecuteCommand(req.params.name, req.params.command, (success, response) => {
+app.post('/command/:name', (req, res) => {
+    let command = req.body.command;
+    docker.ExecuteCommand(req.params.name, command, (success, response) => {
         res.status(success ? 200 : 500).json({success: success, response: response});
     });
 });
