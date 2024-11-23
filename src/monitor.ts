@@ -88,6 +88,7 @@ export class Monitor {
             if (monitor.Profile in this.cache && this.cache[monitor.Profile] == response.data.sha) {
                 Logger.info(`${monitor.Profile} has up-to-date version of ${response.data.sha}`);
                 this.syncMonitorFiles(monitor);
+                this.checkMonitorStatus(monitor, upStatuses);
                 return;
             }
 
@@ -107,7 +108,7 @@ export class Monitor {
 
     }
 
-    runReleaseMonitor(monitor: MonitorDetails, isInit: boolean, dockerStatuses: Record<string, boolean>) {
+    runReleaseMonitor(monitor: MonitorDetails, isInit: boolean, upStatuses: Record<string, boolean>) {
 
         Logger.info(`Run release monitor for ${monitor.Profile}`);
 
@@ -137,6 +138,7 @@ export class Monitor {
             if (monitor.Profile in this.cache && this.cache[monitor.Profile] == name) {
                 Logger.info(`${monitor.Profile} has up-to-date version of ${name}`);
                 this.syncMonitorFiles(monitor);
+                this.checkMonitorStatus(monitor, upStatuses);
                 return;
             }
 
@@ -145,7 +147,7 @@ export class Monitor {
             } else if (monitor.AutoRestart || (isInit && AutostartMonitorProfiles.includes(monitor.Profile))) {
                 this.stopAndRestart(monitor);
             } else {
-                Logger.info(`Do nothing for ${monitor.Profile}`);
+                this.checkMonitorStatus(monitor, upStatuses);
             }
         }).catch((e) => {
             Logger.error(e);
@@ -267,6 +269,12 @@ export class Monitor {
                 numRunning++;
             }
         });
+
+        const statuses = monitor.MonitorContainers.map(x => {
+            return `${x}: ${x in upStatuses && upStatuses[x] === true ? "RUNNING" : "NOT RUNNING"}`;
+        }).join(", ");
+
+        Logger.info(`${monitor.Profile} status(es): ${statuses}`);
 
         if (numRunning !== monitor.MonitorContainers.length) {
             Logger.info(`One or more images for ${monitor.Profile} was not found. Restarting.`);
