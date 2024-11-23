@@ -16,11 +16,12 @@ class MonitorDetails {
     AutoRestart: boolean = false;
     DestinationDirectory: string | undefined;
     RemoveParentFolder: boolean = false;
-    CopyFiles: string[] = []
+    CopyFiles: string[] = [];
+    MonitorContainers: string[] = [];
 }
 
 export class Monitor {
-    cache = new Map<string, string>();
+    cache: Record<string, string> = {};
     monitors: MonitorDetails[] = [];
     docker: Docker
 
@@ -30,13 +31,13 @@ export class Monitor {
         if (!path) {
             path = "./monitors.yml";
         }
-        let yamlText = fs.readFileSync(path, 'utf8');
+        const yamlText = fs.readFileSync(path, 'utf8');
         const yamlValue = parse(yamlText);
 
         if (!yamlValue) return;
-        
+
         Object.keys(yamlValue).forEach(profile => {
-            let profileDetails = yamlValue[profile];
+            const profileDetails = yamlValue[profile];
 
             this.monitors.push({
                 Profile: profile,
@@ -48,7 +49,8 @@ export class Monitor {
                 AutoRestart: profileDetails['auto_restart'] ?? false,
                 DestinationDirectory: profileDetails['destination_directory'],
                 RemoveParentFolder: profileDetails['remove_parent_folder'] ?? false,
-                CopyFiles: profileDetails['copy_files'] ?? []
+                CopyFiles: profileDetails['copy_files'] ?? [],
+                MonitorContainers: profileDetails['monitor_containers'] ?? []
             });
         });
 
@@ -56,42 +58,48 @@ export class Monitor {
     }
 
     runMonitor(isInit: boolean) {
-        this.monitors.forEach(monitor => {
-            try {
-                if (monitor.Type == 'repo') {
-                    this.runRepoMonitor(monitor, isInit);
-                } else if (monitor.Type == 'release') {
-                    this.runReleaseMonitor(monitor, isInit);
+        this.docker.GetStatuses((success: boolean, upStatuses: Record<string, boolean>) => {
+            if (!success) {
+                return;
+            }
+
+            this.monitors.forEach(monitor => {
+                try {
+                    if (monitor.Type == 'repo') {
+                        this.runRepoMonitor(monitor, isInit, upStatuses);
+                    } else if (monitor.Type == 'release') {
+                        this.runReleaseMonitor(monitor, isInit, upStatuses);
+                    }
                 }
-            }
-            catch (e) {
-                Logger.error(`Error running ${monitor.Profile} monitor`);
-                Logger.error(e);
-            }
+                catch (e) {
+                    Logger.error(`Error running ${monitor.Profile} monitor`);
+                    Logger.error(e);
+                }
+            });
         });
     }
 
-    runRepoMonitor(monitor: MonitorDetails, isInit: boolean) {
+    runRepoMonitor(monitor: MonitorDetails, isInit: boolean, upStatuses: Record<string, boolean>) {
 
         Logger.info(`Run repo monitor for ${monitor.Profile}`);
 
-        let repoUrl = `https://api.github.com/repos/${monitor.Owner}/${monitor.Repo}/git/trees/main`;
+        const repoUrl = `https://api.github.com/repos/${monitor.Owner}/${monitor.Repo}/git/trees/main`;
         axios.get(repoUrl).then(response => {
-            if (this.cache.get(monitor.Profile) == response.data.sha) {
+            if (monitor.Profile in this.cache && this.cache[monitor.Profile] == response.data.sha) {
                 Logger.info(`${monitor.Profile} has up-to-date version of ${response.data.sha}`);
                 this.syncMonitorFiles(monitor);
                 return;
             }
 
             if (monitor.DestinationDirectory) {
-                let downloadUrl = `https://github.com/${monitor.Owner}/${monitor.Repo}/archive/refs/heads/main.zip`;
+                const downloadUrl = `https://github.com/${monitor.Owner}/${monitor.Repo}/archive/refs/heads/main.zip`;
                 this.downloadAndExtract(monitor, downloadUrl, response.data.sha, isInit);
             } else if (monitor.AutoRestart) {
                 this.stopAndRestart(monitor);
             } else if (isInit && AutostartMonitorProfiles.includes(monitor.Profile)) {
                 this.stopAndRestart(monitor);
             } else {
-                Logger.info(`Do nothing for ${monitor.Profile}`);
+                this.checkMonitorStatus(monitor, upStatuses);
             }
         }).catch((e) => {
             Logger.error(e);
@@ -99,11 +107,11 @@ export class Monitor {
 
     }
 
-    runReleaseMonitor(monitor: MonitorDetails, isInit: boolean) {
+    runReleaseMonitor(monitor: MonitorDetails, isInit: boolean, dockerStatuses: Record<string, boolean>) {
 
         Logger.info(`Run release monitor for ${monitor.Profile}`);
 
-        let releaseUrl = `https://api.github.com/repos/${monitor.Owner}/${monitor.Repo}/releases`;
+        const releaseUrl = `https://api.github.com/repos/${monitor.Owner}/${monitor.Repo}/releases`;
 
         axios.get(releaseUrl).then(response => {
 
@@ -113,20 +121,20 @@ export class Monitor {
                 }
                 return;
             }
-            let results = response.data
+            const results = response.data
                 .filter((x: any) => (!x.prerelease || monitor.AllowPrerelease))
-                .map((x : any) => (x.assets.filter((y: any) => (y.name.match(monitor.AssetRegex)))))
-                .reduce(function(a : any, b : any[]){ return a.concat(b); }, []);
+                .map((x: any) => (x.assets.filter((y: any) => (y.name.match(monitor.AssetRegex)))))
+                .reduce(function (a: any, b: any[]) { return a.concat(b); }, []);
 
             if (!results) {
                 Logger.info(`No release found for ${monitor.Profile}`);
                 return;
             }
 
-            let name = results[0].name.replace(/\.[^/.]+$/, "");
-            let downloadUrl = results[0].browser_download_url;
+            const name = results[0].name.replace(/\.[^/.]+$/, "");
+            const downloadUrl = results[0].browser_download_url;
 
-            if (this.cache.get(monitor.Profile) == name) {
+            if (monitor.Profile in this.cache && this.cache[monitor.Profile] == name) {
                 Logger.info(`${monitor.Profile} has up-to-date version of ${name}`);
                 this.syncMonitorFiles(monitor);
                 return;
@@ -145,32 +153,31 @@ export class Monitor {
 
     }
 
-    downloadAndExtract(monitor: MonitorDetails, url: string, cacheValue: string, isInit: boolean) {
+    downloadAndExtract(monitor: MonitorDetails, url: string, cacheValue: string, isInit: boolean): Promise<void> | undefined {
 
         if (!fs.existsSync(`${monitor.DestinationDirectory}/builds`)) {
             Logger.info(`Created builds folder for ${monitor.Profile}`);
             fs.mkdirSync(`${monitor.DestinationDirectory}/builds`);
         }
 
-        let buildDirectory = `${monitor.DestinationDirectory}/builds/${cacheValue}`;
+        const buildDirectory = `${monitor.DestinationDirectory}/builds/${cacheValue}`;
 
         if (fs.existsSync(buildDirectory)) {
             Logger.info(`Build ${cacheValue} already exists under ${monitor.Profile} builds folder`);
-            this.cache.set(monitor.Profile, cacheValue);
+            this.cache[monitor.Profile] = cacheValue;
             if (monitor.AutoRestart || (isInit && AutostartMonitorProfiles.includes(monitor.Profile))) {
                 this.stopAndRestart(monitor);
             }
             return;
-
         }
 
-        let tempDirectory = `${monitor.DestinationDirectory}/temp`;
+        const tempDirectory = `${monitor.DestinationDirectory}/temp`;
         if (fs.existsSync(tempDirectory)) {
-            fs.rmSync(tempDirectory, { recursive: true, force: true});
+            fs.rmSync(tempDirectory, { recursive: true, force: true });
         }
         fs.mkdirSync(tempDirectory);
 
-        let tempZip = `${monitor.DestinationDirectory}/temp/files.zip`;
+        const tempZip = `${monitor.DestinationDirectory}/temp/files.zip`;
 
         Logger.info(`Downloading ${url} to ${tempZip}`);
 
@@ -190,31 +197,31 @@ export class Monitor {
                 response.data.pipe(fs.createWriteStream(tempZip)).on('finish', async () => {
                     extract(tempZip, { dir: tempDirectory }).then(() => {
                         Logger.info(`${tempZip} extracted`);
-                        fs.rm(tempZip, () => {});
-    
+                        fs.rm(tempZip, () => { });
+
                         let copyPath = tempDirectory;
                         if (monitor.RemoveParentFolder) {
-                            let subFolder = fs.readdirSync(tempDirectory, { withFileTypes: true }).filter(x => x.isDirectory()).map(x => x.name)[0];
+                            const subFolder = fs.readdirSync(tempDirectory, { withFileTypes: true }).filter(x => x.isDirectory()).map(x => x.name)[0];
                             copyPath = `${tempDirectory}/${subFolder}`;
                         }
                         Logger.info(`Renaming ${copyPath} to ${buildDirectory}`);
                         fs.renameSync(copyPath, buildDirectory);
-                    
+
                         if (fs.existsSync(`${monitor.DestinationDirectory}/current`)) {
                             Logger.info(`Removing ${monitor.DestinationDirectory}/current folder`);
-                            fs.rmSync(`${monitor.DestinationDirectory}/current`, { force: true, recursive: true});
+                            fs.rmSync(`${monitor.DestinationDirectory}/current`, { force: true, recursive: true });
                         }
-            
+
                         Logger.info(`Updating ${monitor.DestinationDirectory}/current to build ${cacheValue}`);
-                        fs.cpSync(buildDirectory, `${monitor.DestinationDirectory}/current`, { recursive: true, force: true})
+                        fs.cpSync(buildDirectory, `${monitor.DestinationDirectory}/current`, { recursive: true, force: true })
 
                         monitor.CopyFiles.forEach((file) => {
                             Logger.info(`Copying ${file} to ${monitor.DestinationDirectory}/current/${file}`);
-                            fs.cpSync(`${monitor.DestinationDirectory}/${file}`, `${monitor.DestinationDirectory}/current/${file}`, { recursive: true, force: true})
+                            fs.cpSync(`${monitor.DestinationDirectory}/${file}`, `${monitor.DestinationDirectory}/current/${file}`, { recursive: true, force: true })
                         });
 
-                        this.cache.set(monitor.Profile, cacheValue);
-    
+                        this.cache[monitor.Profile] = cacheValue;
+
                         if (monitor.AutoRestart) {
                             this.stopAndRestart(monitor);
                         } else if (isInit && AutostartMonitorProfiles.includes(monitor.Profile)) {
@@ -228,12 +235,12 @@ export class Monitor {
                     this.stopAndRestart(monitor);
                 }
             }
-            
+
         }).catch((e) => {
             Logger.error(e);
         });
     }
-    
+
     stopAndRestart(monitor: MonitorDetails) {
         Logger.info(`Restarting docker profile ${monitor.Profile}`);
 
@@ -249,8 +256,28 @@ export class Monitor {
         });
     }
 
+    checkMonitorStatus(monitor: MonitorDetails, upStatuses: Record<string, boolean>) {
+        if (monitor.MonitorContainers.length === 0) {
+            return;
+        }
+
+        let numRunning = 0;
+        monitor.MonitorContainers.forEach(x => {
+            if (x in upStatuses && upStatuses[x] === true) {
+                numRunning++;
+            }
+        });
+
+        if (numRunning !== monitor.MonitorContainers.length) {
+            Logger.info(`One or more images for ${monitor.Profile} was not found. Restarting.`);
+            this.stopAndRestart(monitor);
+        } else {
+            Logger.info(`${monitor.Profile} up-to-date and running successfully`);
+        }
+    }
+
     syncProfileFiles(profile: string) {
-        let monitor = this.monitors.find(x => x.Profile == profile);
+        const monitor = this.monitors.find(x => x.Profile == profile);
         if (!monitor) {
             return;
         }
@@ -259,19 +286,19 @@ export class Monitor {
 
     syncMonitorFiles(monitor: MonitorDetails) {
         monitor.CopyFiles.forEach((file) => {
-            let source = `${monitor.DestinationDirectory}/${file}`;
-            let destination = `${monitor.DestinationDirectory}/current/${file}`;
+            const source = `${monitor.DestinationDirectory}/${file}`;
+            const destination = `${monitor.DestinationDirectory}/current/${file}`;
 
-            let sourceDate : Date = new Date();
-            let destinationDate : Date = new Date();
+            const sourceDate: Date = new Date();
+            const destinationDate: Date = new Date();
             fs.utimesSync(source, new Date(), sourceDate);
             fs.utimesSync(destination, new Date(), destinationDate);
 
             if (sourceDate != destinationDate) {
                 Logger.info(`Copying ${source} to ${destination}`);
-                fs.cpSync(source, destination, { recursive: true, force: true})
+                fs.cpSync(source, destination, { recursive: true, force: true })
             }
-            
+
         });
     }
 }

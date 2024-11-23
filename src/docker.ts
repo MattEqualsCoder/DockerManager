@@ -9,23 +9,21 @@ import { Logger, LogFormat } from './logger'
 
 export class Docker {
 
-    private services : string[]
-    private serviceMap = new Map<string, any>();
-    private folder : string = "";
-    private dockerComposeFile : string = "";
-    private profiles : string[] = [];
+    private services: string[];
+    private folder: string = "";
+    private dockerComposeFile: string = "";
+    private profiles: string[] = [];
 
     constructor() {
         this.dockerComposeFile = DockerComposePath ?? "";
         this.folder = path.dirname(this.dockerComposeFile);
-        let yamlText = fs.readFileSync(this.dockerComposeFile,'utf8');
+        const yamlText = fs.readFileSync(this.dockerComposeFile, 'utf8');
 
         this.services = [];
 
         const yamlValue = parse(yamlText);
         Object.keys(yamlValue.services).forEach(serviceKey => {
             this.services.push(serviceKey);
-            this.serviceMap.set(serviceKey, yamlValue.services[serviceKey]);
 
             if (yamlValue.services[serviceKey].profiles) {
                 var profiles = yamlValue.services[serviceKey].profiles as string[];
@@ -42,7 +40,7 @@ export class Docker {
         });
     }
 
-    GetServiceNames() : string[] {
+    GetServiceNames(): string[] {
         return this.services;
     }
 
@@ -50,131 +48,129 @@ export class Docker {
 
         Logger.info(`Starting main docker compose`);
 
-        let child = spawn('docker compose up --build', { detached: true, shell: true, cwd: this.folder });
+        const dockerProcess = spawn('docker compose up --build', { detached: true, shell: true, cwd: this.folder });
 
         const dockerLogger = winston.createLogger({
             level: 'info',
             format: LogFormat,
             transports: [
-                new DailyRotateFile({ 
+                new DailyRotateFile({
                     filename: `../logs/docker/docker_%DATE%.log`,
                     datePattern: 'yyyy-MM-DD'
                 }),
             ],
         });
-          
+
         if (process.env.NODE_ENV !== 'production') {
             dockerLogger.add(new winston.transports.Console({
                 format: LogFormat,
             }));
         }
 
-        child.on('message', (data) => {
+        dockerProcess.on('message', (data) => {
             dockerLogger.info(`${data}`.trim())
         });
 
-        child.on('error', (data) => {
+        dockerProcess.on('error', (data) => {
             dockerLogger.error(`${data}`.trim())
         });
 
-        child.stdout.on('data', (data) => {
+        dockerProcess.stdout.on('data', (data) => {
             dockerLogger.info(`${data}`.trim());
         });
-          
-        child.stderr.on('data', (data) => {
+
+        dockerProcess.stderr.on('data', (data) => {
             dockerLogger.error(`${data}`.trim());
         });
     }
 
-    StartProfile(profileName: string) : boolean {
+    StartProfile(profileName: string): boolean {
 
         Logger.info(`Starting profile ${profileName}`);
 
-        if (!this.profiles.includes(profileName))
-        {
+        if (!this.profiles.includes(profileName)) {
             Logger.error(`Invalid profile ${profileName}`);
             return false;
         }
 
-        let child = spawn(`docker compose --profile ${profileName} up --build`, { detached: true, shell: true, cwd: this.folder });
+        const dockerProcess = spawn(`docker compose --profile ${profileName} up --build`, { detached: true, shell: true, cwd: this.folder });
 
         const dockerLogger = winston.createLogger({
             level: 'info',
             format: LogFormat,
             transports: [
-                new DailyRotateFile({ 
+                new DailyRotateFile({
                     filename: `../logs/docker/${profileName}_%DATE%.log`,
                     datePattern: 'yyyy-MM-DD'
                 }),
             ],
         });
-          
+
         if (process.env.NODE_ENV !== 'production') {
             dockerLogger.add(new winston.transports.Console({
                 format: LogFormat,
             }));
         }
 
-        child.on('message', (data) => {
+        dockerProcess.on('message', (data) => {
             dockerLogger.info(`${data}`.trim())
         });
 
-        child.on('error', (data) => {
+        dockerProcess.on('error', (data) => {
             dockerLogger.error(`${data}`.trim())
         });
 
-        child.stdout.on('data', (data) => {
+        dockerProcess.stdout.on('data', (data) => {
             dockerLogger.info(`${data}`.trim());
         });
-          
-        child.stderr.on('data', (data) => {
+
+        dockerProcess.stderr.on('data', (data) => {
             dockerLogger.error(`${data}`.trim());
         });
 
         return true;
     }
 
-    StopProfile(profileName: string) : boolean {
-        if (!this.profiles.includes(profileName))
-        {
+    StopProfile(profileName: string): boolean {
+        if (!this.profiles.includes(profileName)) {
             Logger.error(`Invalid profile ${profileName}`);
             return false;
         }
 
         Logger.info(`Stopping profile ${profileName}`);
 
-        let child = spawn(`docker compose --profile ${profileName} stop`, { detached: true, shell: true, cwd: this.folder });
+        const dockerProcess = spawn(`docker compose --profile ${profileName} stop`, { detached: true, shell: true, cwd: this.folder });
 
         const dockerLogger = winston.createLogger({
             level: 'info',
             format: LogFormat,
             transports: [
-                new DailyRotateFile({ 
+                new DailyRotateFile({
                     filename: `../logs/docker/${profileName}_%DATE%.log`,
                     datePattern: 'yyyy-MM-DD'
                 }),
             ],
         });
-          
+
         if (process.env.NODE_ENV !== 'production') {
             dockerLogger.add(new winston.transports.Console({
                 format: LogFormat,
             }));
         }
 
-        child.on('message', (data) => {
+        dockerProcess.on('message', (data) => {
             dockerLogger.info(`${data}`.trim())
         });
 
-        child.on('error', (data) => {
+        dockerProcess.on('error', (data) => {
             dockerLogger.error(`${data}`.trim())
         });
 
-        child.stdout.on('data', (data) => {
+        dockerProcess.stdout.on('data', (data) => {
             dockerLogger.info(`${data}`.trim());
         });
-          
-        child.stderr.on('data', (data) => {
+
+        dockerProcess.stderr.on('data', (data) => {
             dockerLogger.error(`${data}`.trim());
         });
 
@@ -206,13 +202,13 @@ export class Docker {
                 return
             }
 
-            if (!statuses.has(containerName)) {
+            if (!(containerName in statuses)) {
                 Logger.error(`Container: ${containerName} is invalid`);
                 callback(false, false);
                 return;
             }
 
-            callback(success, statuses.get(containerName) ?? false);
+            callback(success, statuses[containerName] ?? false);
         });
     }
 
@@ -224,14 +220,14 @@ export class Docker {
                 return;
             }
 
-            exec(`docker exec ${containerName} ${command}`, {cwd: this.folder}, (error, stdout, stderr) => {
+            exec(`docker exec ${containerName} ${command}`, { cwd: this.folder }, (error, stdout, stderr) => {
 
                 if (error) {
                     Logger.error(error.message);
                     callback(false, `Error: ${error.message}`);
                     return;
                 }
-    
+
                 if (stderr) {
                     Logger.error(stderr);
                     callback(false, `Error: ${stderr}`);
@@ -244,44 +240,47 @@ export class Docker {
         });
     }
 
-    GetStatuses(callback: ((success: boolean, upStatuses: Map<string, boolean>) => void)) {
-        exec('docker compose ps -a', {cwd: this.folder}, (error, stdout, stderr) => {
+    GetStatuses(callback: ((success: boolean, upStatuses: Record<string, boolean>) => void)) {
+        exec('docker compose ps -a', { cwd: this.folder }, (error, stdout, stderr) => {
 
             if (error) {
                 Logger.error(error.message);
-                callback(false, new Map<string, boolean>());
+                callback(false, {});
                 return;
             }
 
             if (stderr) {
                 Logger.error(stderr);
-                callback(false, new Map<string, boolean>());
+                callback(false, {});
                 return;
             }
 
-            let results = new Map<string, boolean>();
-            let lines = stdout.split("\n");
-            let nameEnd = lines[0].indexOf("IMAGE");
-            let serviceStart = lines[0].indexOf("SERVICE");
-            let serviceEnd = lines[0].indexOf("CREATED");
-            let statusStart = lines[0].indexOf("STATUS");
-            let statusEnd = lines[0].indexOf("PORTS");
+            const results: Record<string, boolean> = {};
+            const lines = stdout.split("\n");
+            const nameEnd = lines[0].indexOf("IMAGE");
+            const imageEnd = lines[0].indexOf("COMMND");
+            const serviceStart = lines[0].indexOf("SERVICE");
+            const serviceEnd = lines[0].indexOf("CREATED");
+            const statusStart = lines[0].indexOf("STATUS");
+            const statusEnd = lines[0].indexOf("PORTS");
             for (let i = 1; i < lines.length; i++) {
-                let line = lines[i];
-                let name = line.substring(0, nameEnd).trim();
-                let service = line.substring(serviceStart, serviceEnd).trim();
+                const line = lines[i];
+                const name = line.substring(0, nameEnd).trim();
+                const image = line.substring(nameEnd, imageEnd).trim();
+                const service = line.substring(serviceStart, serviceEnd).trim();
                 if (!service) {
                     continue;
                 }
-                let status = line.substring(statusStart, statusEnd);
-                let isUp = status.startsWith("Up");
-                results.set(service, isUp);
-                results.set(name, isUp);
+                const status = line.substring(statusStart, statusEnd);
+                const isUp = status.startsWith("Up");
+                results[service] = isUp;
+                results[name] = isUp;
+                results[image] = isUp;
             }
 
             this.services.forEach(serviceKey => {
-                if (!results.has(serviceKey)) {
-                    results.set(serviceKey, false);
+                if (!(serviceKey in results)) {
+                    results[serviceKey] = false;
                 }
             });
 
