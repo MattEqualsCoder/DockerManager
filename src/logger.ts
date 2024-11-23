@@ -20,17 +20,18 @@ const Logger = winston.createLogger({
     level: 'info',
     format: LogFormat,
     transports: [
-        new DailyRotateFile({ 
+        new DailyRotateFile({
             filename: `../logs/log_%DATE%.log`,
-            datePattern: 'yyyy-MM-DD'
+            datePattern: 'yyyy-MM-DD',
+            maxFiles: 30
         }),
     ],
 });
 
 if (process.env.NODE_ENV !== 'production') {
-  Logger.add(new winston.transports.Console({
-    format: LogFormat
-  }));
+    Logger.add(new winston.transports.Console({
+        format: LogFormat
+    }));
 }
 
 export {
